@@ -2,7 +2,7 @@ This is an implementation of [proximal policy optimization](https://arxiv.org/ab
 
 If all prerequisites are installed, type "python ppo.py" to run in the default configuration on Pong.
 
-Here's a graph of performance on Pong with the default configuration, smoothed via rolling average with window size 10:
+Here's a graph of performance on Pong with the default configuration:
 
 ![PPO performance graph for Pong](http://coreystaten.github.io/assets/ppo.png)
 
