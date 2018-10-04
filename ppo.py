@@ -16,7 +16,7 @@ num_actors = 8
 gae_lambda = 0.95
 gamma = 0.99 
 base_clip_epsilon = 0.1
-max_steps = 1e7
+max_steps = 1e6
 base_learning_rate = 2.5e-4
 horizon = 128
 batch_size = 32
@@ -25,6 +25,8 @@ value_loss_coefficient = 1
 entropy_loss_coefficient = .01
 gradient_max = 10.0
 start_t = 0
+checkpoint_filename = "./ppo-model.ckpt"
+log_dir = "./tb_log"
 
 SMALL_NUM = 1e-8
 
@@ -117,7 +119,7 @@ class EnvActor(object):
         self.advantage_estimates = TimeIndexedList(first_t = start_t)
         self.value_estimates = TimeIndexedList(first_t = start_t)
 
-    def step_env(self, sess, obs_ph, policy, value, t):
+    def step_env(self, sess, logger, obs_ph, policy, value, t):
         if t == start_t:
             # Artifact of ordering
             val_0 = sess.run(value, {obs_ph: [self.last_obs]})
@@ -134,6 +136,11 @@ class EnvActor(object):
         self.rewards_this_episode.append(rew_t)
 
         if done_t:
+            ep_sum = tf.Summary()
+            ep_sum.value.add(tag="episode_reward", simple_value=sum(self.rewards_this_episode))
+            ep_sum.value.add(tag="episode_length", simple_value=len(self.rewards_this_episode))
+            logger.add_summary(ep_sum, t)
+
             self.done.append(True)
             self.episode_rewards.append(sum(self.rewards_this_episode))
             self.rewards_this_episode = []
@@ -275,8 +282,13 @@ def train():
         tf.global_variables_initializer().run()
         saver = tf.train.Saver()
         # Uncomment to resume from last checkpoint.
-        #saver.restore(sess, "/home/corey/ppo-model.ckpt")
-
+        # saver.restore(sess, checkpoint_filename)
+        logger = tf.summary.FileWriter(log_dir, sess.graph)
+        tf.summary.histogram("total_loss", total_loss)
+        tf.summary.histogram("value_loss", value_loss)
+        tf.summary.histogram("clip_loss", clip_loss)
+        tf.summary.histogram("entropy_loss", entropy_loss)
+        summary_op = tf.summary.merge_all()
 
         # Global time counter
         # At time t, take a_t from s_t, receive r_t.
@@ -290,13 +302,11 @@ def train():
         while t <= max_steps:
             for ii in range(horizon):
                 for actor in actors:
-                    actor.step_env(sess, obs_ph, policy, value_net, t)
+                    actor.step_env(sess, logger, obs_ph, policy, value_net, t)
                 t += 1
 
             for actor in actors:
                 actor.calculate_horizon_advantages(t)
-
-
 
             # Construct randomly sampled (without replacement) mini-batches.
             obs_horizon = []
@@ -349,21 +359,15 @@ def train():
                         value_sample_estimate_ph: value_sample_batch,
                         alpha_ph: alpha_anneal(t)
                     }
-                    sess.run(update_op, update_feed)
+                    _, summary = sess.run([update_op, summary_op], update_feed)
+                    logger.add_summary(summary, t)
 
-
-            cg = sess.run(clipped_gradients, update_feed)
-            prat = sess.run(policy, update_feed)
-            prat2 = sess.run(value_net, update_feed)
-            prat3 = sess.run(clip_loss,update_feed)
-            prat4 = sess.run(value_loss, update_feed)
-            prat5 = sess.run(entropy_loss, update_feed)
 
             for actor in actors:
                 actor.flush(t)
 
             if t - last_save > 10000:
-                saver.save(sess, "/home/corey/ppo-model.ckpt")
+                saver.save(sess, checkpoint_filename)
                 last_save = t
 
             all_ep_rewards = []
