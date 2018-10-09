@@ -5,5 +5,3 @@ If all prerequisites are installed, type "python ppo.py" to run in the default c
 Here's a graph of performance on Pong with the default configuration:
 
 ![PPO performance graph for Pong](http://coreystaten.github.io/assets/ppo.png)
-
-Note this uses 8 actors, so timestep t corresponds to 8\*t samples.
