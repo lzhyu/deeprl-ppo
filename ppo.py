@@ -250,7 +250,7 @@ def train():
         shared_net = shared_network_atari(obs_ph)
         value_net = value_tail(shared_net)
         policy = policy_tail(shared_net)
-
+		saver = tf.train.Saver()
         act_ph = tf.placeholder(tf.int32, shape=(None,))
         act_onehot = tf.one_hot(act_ph, num_actions)
         policy_old_ph = tf.placeholder(tf.float32, shape=(None, num_actions))
@@ -280,7 +280,7 @@ def train():
         update_op = adam.apply_gradients(zip(clipped_gradients, variables))
 
         tf.global_variables_initializer().run()
-        saver = tf.train.Saver()
+        
         # Uncomment to resume from last checkpoint.
         # saver.restore(sess, checkpoint_filename)
         logger = tf.summary.FileWriter(log_dir, sess.graph)
